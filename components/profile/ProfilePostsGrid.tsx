@@ -7,6 +7,7 @@ import { useFocusEffect } from 'expo-router'
 type Props = {
   userId: string
   onPostPress: (postId: string) => void
+  onPostDelete?: (postId: string) => void
 }
 
 const NUM_COLUMNS = 3
@@ -18,6 +19,7 @@ const ITEM_WIDTH =
 export default function ProfilePostsGrid({
   userId,
   onPostPress,
+  onPostDelete,
 }: Props) {
   const [posts, setPosts] = useState<any[]>([])
 
@@ -44,7 +46,7 @@ export default function ProfilePostsGrid({
         paddingHorizontal: GAP,
         paddingBottom: 80,
       }}
-      renderItem={({ item, index }) => {
+      renderItem={({ item, index}) => {
         const imageUrl =
           item.media_urls?.[0] ||
           'https://upload.wikimedia.org/wikipedia/commons/3/3a/Cat03.jpg'

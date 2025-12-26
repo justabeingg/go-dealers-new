@@ -1,0 +1,16 @@
+BACKUP: Original Feed Tab (BEFORE Tap-to-Refresh Enhancement)
+Date: Current working version
+Location: app/(tabs)/feed.tsx
+
+CURRENT FEATURES:
+- Feed/Connections tabs
+- Pull-to-refresh
+- Scroll pagination
+- Profile navigation
+
+TO RESTORE:
+If optimization breaks, replace app/(tabs)/feed.tsx with this file.
+
+===========================================
+[Full file backed up - see feed.tsx.backup file]
+===========================================

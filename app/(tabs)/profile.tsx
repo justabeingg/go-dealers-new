@@ -9,7 +9,7 @@ import {
   Keyboard,
   Pressable,
 } from 'react-native'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Image } from 'expo-image'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -22,6 +22,7 @@ import ProfileImagePickerModal from '../../components/modals/ProfileImagePickerM
 
 export default function ProfileScreen() {
   const router = useRouter()
+  const scrollViewRef = useRef<FlatList>(null)
 
   const [profile, setProfile] = useState<any>(null)
   const [posts, setPosts] = useState<any[]>([])
@@ -101,6 +102,52 @@ export default function ProfileScreen() {
     return () => clearInterval(interval)
   }, [])
 
+  /* ---------------- DELETE POST ---------------- */
+  const handleDeletePost = async (postId: string) => {
+    try {
+      // Find the post to get image URLs
+      const postToDelete = posts.find(p => p.id === postId)
+      
+      // Delete from database (this will also delete from feed)
+      const { error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', postId)
+
+      if (error) {
+        console.error('Error deleting post:', error)
+        return
+      }
+
+      // Delete images from Cloudinary if they exist
+      if (postToDelete?.media_urls && postToDelete.media_urls.length > 0) {
+        // Call edge function to delete Cloudinary images
+        await fetch(
+          `https://afbmpqgyghuccdimacpn.supabase.co/functions/v1/delete-cloudinary-images`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFmYm1wcWd5Z2h1Y2NkaW1hY3BuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYyMDQ2ODEsImV4cCI6MjA4MTc4MDY4MX0.VBYJOqALBTWSpjSVCmpCRE5o5zbj6e91uWk_wx41yf0`,
+            },
+            body: JSON.stringify({ imageUrls: postToDelete.media_urls }),
+          }
+        )
+      }
+
+      // Update local state
+      setPosts(posts.filter(p => p.id !== postId))
+      setFilteredPosts(filteredPosts.filter(p => p.id !== postId))
+      
+      // If we're viewing this post, go back to grid
+      if (focusedPostId === postId) {
+        setFocusedPostId(null)
+      }
+    } catch (error) {
+      console.error('Error in handleDeletePost:', error)
+    }
+  }
+
   /* ---------------- SEARCH ---------------- */
   const handleSearch = (query: string) => {
     setSearchQuery(query)
@@ -140,30 +187,53 @@ export default function ProfileScreen() {
      SCROLL VIEW (POST FOCUSED)
      ================================================= */
   if (focusedPostId) {
-    const focusedIndex = posts.findIndex(
-      p => p.id === focusedPostId
-    )
-
+    const focusedIndex = posts.findIndex(p => p.id === focusedPostId)
+    
     return (
       <View style={{ flex: 1, backgroundColor: '#0B0F1A' }}>
         <StatusBar hidden={false} />
 
         <FlatList
+          ref={scrollViewRef}
           data={posts}
           keyExtractor={item => item.id}
-          initialScrollIndex={focusedIndex}
-          getItemLayout={(_, index) => ({
-            length: 380,
-            offset: 380 * index,
-            index,
-          })}
+          initialScrollIndex={focusedIndex >= 0 ? focusedIndex : 0}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{
             paddingTop: 24,
             paddingBottom: 110,
           }}
+          // Smart height estimation for smooth scrolling
+          getItemLayout={(data, index) => {
+            // Base height: 260px (image) + 60px (header) + 80px (content) = 400px
+            // Plus extra for description (estimate ~50px per 100 chars)
+            const item = data?.[index]
+            const descLength = item?.description?.length || 0
+            const extraHeight = Math.ceil(descLength / 100) * 50
+            const estimatedHeight = 400 + extraHeight
+            
+            return {
+              length: estimatedHeight,
+              offset: estimatedHeight * index,
+              index,
+            }
+          }}
+          initialNumToRender={5}
+          maxToRenderPerBatch={5}
+          windowSize={10}
+          onScrollToIndexFailed={info => {
+            // If scroll fails, wait and try again
+            const wait = new Promise(resolve => setTimeout(resolve, 150))
+            wait.then(() => {
+              scrollViewRef.current?.scrollToIndex({
+                index: info.index,
+                animated: false,
+              })
+            })
+          }}
           renderItem={({ item }) => (
             <ProfilePhoneCard
+              postId={item.id}
               model={item.product_name}
               description={item.description}
               price={item.price}
@@ -172,6 +242,7 @@ export default function ProfileScreen() {
               shopName={profile.shop_name}
               city={profile.city}
               profileImage={profile.profile_image}
+              onDelete={handleDeletePost}
             />
           )}
         />
@@ -198,15 +269,17 @@ export default function ProfileScreen() {
             }}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Image
-                source={{ uri: profile.profile_image }}
-                style={{
-                  width: 70,
-                  height: 70,
-                  borderRadius: 35,
-                  backgroundColor: '#1F2937',
-                }}
-              />
+              <Pressable onPress={() => setImagePickerVisible(true)}>
+                <Image
+                  source={{ uri: profile.profile_image }}
+                  style={{
+                    width: 70,
+                    height: 70,
+                    borderRadius: 35,
+                    backgroundColor: '#1F2937',
+                  }}
+                />
+              </Pressable>
               <View style={{ marginLeft: 12 }}>
                 <Text
                   style={{
@@ -291,6 +364,7 @@ export default function ProfileScreen() {
             contentContainerStyle={{ paddingBottom: 110 }}
             renderItem={({ item }) => (
               <ProfilePhoneCard
+                postId={item.id}
                 model={item.product_name}
                 description={item.description}
                 price={item.price}
@@ -299,6 +373,7 @@ export default function ProfileScreen() {
                 shopName={profile.shop_name}
                 city={profile.city}
                 profileImage={profile.profile_image}
+                onDelete={handleDeletePost}
               />
             )}
           />
@@ -306,6 +381,7 @@ export default function ProfileScreen() {
           <ProfilePostsGrid
             userId={profile.id}
             onPostPress={postId => setFocusedPostId(postId)}
+            onPostDelete={handleDeletePost}
           />
         )}
       </View>

@@ -36,6 +36,14 @@ export default function TabLayout() {
             <PillTabButton {...props} icon="home" color="#4ADE80" />
           ),
         }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            // Only refresh if already on feed tab
+            if (navigation.isFocused()) {
+              ;(globalThis as any).__REFRESH_FEED__ = true
+            }
+          },
+        })}
       />
 
       <Tabs.Screen
@@ -45,6 +53,14 @@ export default function TabLayout() {
             <PillTabButton {...props} icon="map" color="#60A5FA" />
           ),
         }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            // Only reset search if already on search tab
+            if (navigation.isFocused()) {
+              ;(globalThis as any).__RESET_SEARCH__ = true
+            }
+          },
+        })}
       />
 
       <Tabs.Screen
@@ -72,11 +88,14 @@ export default function TabLayout() {
             <PillTabButton {...props} icon="person" color="#A78BFA" />
           ),
         }}
-        listeners={{
-          tabPress: () => {
-            ;(globalThis as any).__GO_BACK_TO_PROFILE_GRID__ = true
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            // Only go back to grid if already on profile tab
+            if (navigation.isFocused()) {
+              ;(globalThis as any).__GO_BACK_TO_PROFILE_GRID__ = true
+            }
           },
-        }}
+        })}
       />
       </Tabs>
     </GestureHandlerRootView>

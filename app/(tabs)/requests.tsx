@@ -1,14 +1,21 @@
-import { View, Text, FlatList, Pressable, ActivityIndicator, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform } from 'react-native'
+import { View, Text, FlatList, Pressable, ActivityIndicator, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform, RefreshControl, Linking } from 'react-native'
 import { useState, useEffect, useRef } from 'react'
 import { Image } from 'expo-image'
 import { router, useFocusEffect } from 'expo-router'
 import { supabase } from '../../lib/supabase'
 import { Ionicons } from '@expo/vector-icons'
 import { useCallback } from 'react'
+import {
+  saveConnectionRequests,
+  getConnectionRequests,
+  saveDeviceRequests,
+  getDeviceRequests,
+} from '../../lib/requestsCache'
 
 export default function RequestsScreen() {
   const [requests, setRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [processingAction, setProcessingAction] = useState<'accept' | 'decline' | null>(null)
@@ -33,14 +40,41 @@ export default function RequestsScreen() {
   const conditionRef = useRef<any>(null)
   const priceRef = useRef<any>(null)
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchRequests()
-      fetchDeviceRequests()
-    }, [])
-  )
+  // Initial load - from cache then background refresh
+  useEffect(() => {
+    loadFromCacheAndRefresh()
+  }, [])
 
-  const fetchDeviceRequests = async () => {
+  // Load from cache first, then refresh in background
+  const loadFromCacheAndRefresh = async () => {
+    // Load from cache instantly
+    const cachedConnections = await getConnectionRequests()
+    const cachedDevices = await getDeviceRequests()
+    
+    if (cachedConnections) {
+      setRequests(cachedConnections)
+      setLoading(false)
+    }
+    if (cachedDevices) {
+      setDeviceRequests(cachedDevices)
+    }
+    
+    // Then refresh in background
+    await fetchRequests(false)
+    await fetchDeviceRequests(false)
+  }
+
+  // Pull to refresh
+  const onRefresh = useCallback(() => {
+    setRefreshing(true)
+    Promise.all([fetchRequests(false), fetchDeviceRequests(false)]).finally(() => {
+      setRefreshing(false)
+    })
+  }, [])
+
+  const fetchDeviceRequests = async (showLoading = true) => {
+    if (showLoading) setLoading(true)
+    
     const { data } = await supabase
       .from('device_requests')
       .select(`
@@ -48,21 +82,27 @@ export default function RequestsScreen() {
         profiles (
           shop_name,
           city,
-          profile_image
+          profile_image,
+          phone
         )
       `)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
 
-    setDeviceRequests(data || [])
+    if (data) {
+      setDeviceRequests(data)
+      await saveDeviceRequests(data)
+    }
+    
+    if (showLoading) setLoading(false)
   }
 
-  const fetchRequests = async () => {
-    setLoading(true)
+  const fetchRequests = async (showLoading = true) => {
+    if (showLoading) setLoading(true)
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      setLoading(false)
+      if (showLoading) setLoading(false)
       return
     }
 
@@ -90,11 +130,13 @@ export default function RequestsScreen() {
       }))
 
       setRequests(requestsWithProfiles)
+      await saveConnectionRequests(requestsWithProfiles)
     } else {
       setRequests([])
+      await saveConnectionRequests([])
     }
 
-    setLoading(false)
+    if (showLoading) setLoading(false)
   }
 
   const acceptRequest = async (requestId: string, senderId: string) => {
@@ -220,6 +262,14 @@ export default function RequestsScreen() {
     }
   }
 
+  const openWhatsApp = (phone: string, deviceModel: string) => {
+    const message = `Hi, I have the ${deviceModel} you're looking for`
+    const url = `whatsapp://send?phone=${phone}&text=${encodeURIComponent(message)}`
+    Linking.openURL(url).catch(() => {
+      alert('WhatsApp is not installed')
+    })
+  }
+
   if (loading) {
     return (
       <View
@@ -334,6 +384,13 @@ export default function RequestsScreen() {
           <FlatList
             data={requests}
             keyExtractor={(item) => item.id}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor="#6C8CFF"
+              />
+            }
             renderItem={({ item }) => {
               const sender = item.sender
               if (!sender) return null
@@ -528,6 +585,13 @@ export default function RequestsScreen() {
             <FlatList
               data={deviceRequests}
               keyExtractor={(item) => item.id}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor="#6C8CFF"
+                />
+              }
               renderItem={({ item }) => {
                 const isMyRequest = item.user_id === currentUserId
                 
@@ -577,7 +641,7 @@ export default function RequestsScreen() {
                       )}
                     </View>
 
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
                       <Pressable
                         onPress={async () => {
                           const { data: { user } } = await supabase.auth.getUser()
@@ -589,7 +653,7 @@ export default function RequestsScreen() {
                             router.push(`/other-profile/${item.user_id}`)
                           }
                         }}
-                        style={{ flexDirection: 'row', alignItems: 'center' }}
+                        style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
                       >
                         <View
                           style={{
@@ -614,10 +678,31 @@ export default function RequestsScreen() {
                             </Text>
                           )}
                         </View>
-                        <Text style={{ color: '#9CA3AF', fontSize: 13 }}>
+                        <Text style={{ color: '#9CA3AF', fontSize: 13, flex: 1 }}>
                           {item.profiles?.shop_name} • {item.profiles?.city}
                         </Text>
                       </Pressable>
+
+                      {/* WhatsApp Button - only for OTHER people's requests */}
+                      {!isMyRequest && item.profiles?.phone && (
+                        <Pressable
+                          onPress={() => openWhatsApp(item.profiles.phone, item.model)}
+                          style={{
+                            backgroundColor: '#25D366',
+                            paddingVertical: 8,
+                            paddingHorizontal: 16,
+                            borderRadius: 8,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 6,
+                          }}
+                        >
+                          <Ionicons name="logo-whatsapp" size={18} color="#FFF" />
+                          <Text style={{ color: '#FFF', fontWeight: '600', fontSize: 13 }}>
+                            Contact
+                          </Text>
+                        </Pressable>
+                      )}
                     </View>
                   </View>
                 )

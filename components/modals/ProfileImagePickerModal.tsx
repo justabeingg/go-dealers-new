@@ -1,6 +1,5 @@
-import { View, Text, Pressable, Modal, ActivityIndicator, Dimensions } from 'react-native'
+import { View, Text, Pressable, Modal, ActivityIndicator, Dimensions, Alert } from 'react-native'
 import { useState } from 'react'
-import { Image } from 'expo-image'
 import * as ImagePicker from 'expo-image-picker'
 import { supabase } from '../../lib/supabase'
 import { CLOUDINARY_CLOUD_NAME, CLOUDINARY_UPLOAD_PRESET } from '../../lib/cloudinary'
@@ -21,49 +20,15 @@ export default function ProfileImagePickerModal({
   onSaved,
 }: Props) {
   const [uploading, setUploading] = useState(false)
-  const [selectedImage, setSelectedImage] = useState<string | null>(null)
 
-  const pickFromGallery = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: false,
-      quality: 0.8,
-    })
-
-    if (!result.canceled) {
-      setSelectedImage(result.assets[0].uri)
-    }
-  }
-
-  const takePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync()
-    
-    if (status !== 'granted') {
-      alert('Camera permission required')
-      return
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: false,
-      quality: 0.8,
-    })
-
-    if (!result.canceled) {
-      setSelectedImage(result.assets[0].uri)
-    }
-  }
-
-  const uploadImage = async () => {
-    if (!selectedImage) return
-
+  const uploadImage = async (imageUri: string) => {
     setUploading(true)
 
     try {
       // Upload to Cloudinary
       const formData = new FormData()
       formData.append('file', {
-        uri: selectedImage,
+        uri: imageUri,
         type: 'image/jpeg',
         name: 'profile.jpg',
       } as any)
@@ -95,40 +60,43 @@ export default function ProfileImagePickerModal({
       if (error) throw error
 
       setUploading(false)
-      setSelectedImage(null)
       onSaved()
       onClose()
     } catch (err) {
       console.error('Upload error:', err)
-      alert('Failed to upload image. Please try again.')
+      Alert.alert('Error', 'Failed to upload image. Please try again.')
       setUploading(false)
     }
   }
 
-  const removeImage = async () => {
-    setUploading(true)
+  const pickFromGallery = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      quality: 0.8,
+    })
 
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+    if (!result.canceled) {
+      await uploadImage(result.assets[0].uri)
+    }
+  }
 
-      if (!user) throw new Error('Not authenticated')
+  const takePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync()
+    
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Camera permission is required to take photos')
+      return
+    }
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({ profile_image: null })
-        .eq('id', user.id)
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      quality: 0.8,
+    })
 
-      if (error) throw error
-
-      setUploading(false)
-      onSaved()
-      onClose()
-    } catch (err) {
-      console.error('Remove error:', err)
-      alert('Failed to remove image. Please try again.')
-      setUploading(false)
+    if (!result.canceled) {
+      await uploadImage(result.assets[0].uri)
     }
   }
 
@@ -139,21 +107,21 @@ export default function ProfileImagePickerModal({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <View
+      <Pressable
         style={{
           flex: 1,
-          backgroundColor: 'rgba(0,0,0,0.9)',
-          justifyContent: 'center',
-          alignItems: 'center',
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          justifyContent: 'flex-end',
         }}
+        onPress={onClose}
       >
-        <View
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
           style={{
             backgroundColor: '#12182B',
-            borderRadius: 20,
-            width: width - 40,
-            maxWidth: 400,
-            overflow: 'hidden',
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            paddingBottom: 40,
           }}
         >
           {/* Header */}
@@ -167,172 +135,105 @@ export default function ProfileImagePickerModal({
             <Text
               style={{
                 color: '#FFFFFF',
-                fontSize: 20,
+                fontSize: 18,
                 fontWeight: '700',
                 textAlign: 'center',
               }}
             >
-              Profile Photo
+              Change Profile Picture
             </Text>
           </View>
 
-          {/* Preview */}
-          {(selectedImage || currentImage) && (
-            <View
-              style={{
-                alignItems: 'center',
-                paddingVertical: 30,
-                backgroundColor: '#0B0F1A',
-              }}
-            >
+          {uploading ? (
+            <View style={{ padding: 40, alignItems: 'center' }}>
+              <ActivityIndicator color="#6C8CFF" size="large" />
+              <Text style={{ color: '#9CA3AF', marginTop: 16, fontSize: 14 }}>
+                Uploading...
+              </Text>
+            </View>
+          ) : (
+            <View style={{ padding: 16 }}>
+              {/* Camera Option */}
+              <Pressable
+                onPress={takePhoto}
+                style={({ pressed }) => [
+                  {
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingVertical: 16,
+                    paddingHorizontal: 16,
+                    gap: 16,
+                    backgroundColor: '#1F2937',
+                    borderRadius: 12,
+                    marginBottom: 12,
+                  },
+                  pressed && {
+                    backgroundColor: '#374151',
+                    transform: [{ scale: 0.98 }],
+                  },
+                ]}
+              >
+                <Text style={{ fontSize: 24 }}>📷</Text>
+                <Text style={{ color: '#E5E7EB', fontSize: 16, flex: 1 }}>
+                  Take Photo
+                </Text>
+              </Pressable>
+
+              {/* Gallery Option */}
+              <Pressable
+                onPress={pickFromGallery}
+                style={({ pressed }) => [
+                  {
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingVertical: 16,
+                    paddingHorizontal: 16,
+                    gap: 16,
+                    backgroundColor: '#1F2937',
+                    borderRadius: 12,
+                  },
+                  pressed && {
+                    backgroundColor: '#374151',
+                    transform: [{ scale: 0.98 }],
+                  },
+                ]}
+              >
+                <Text style={{ fontSize: 24 }}>🖼️</Text>
+                <Text style={{ color: '#E5E7EB', fontSize: 16, flex: 1 }}>
+                  Choose from Gallery
+                </Text>
+              </Pressable>
+
+              {/* Divider */}
               <View
                 style={{
-                  width: 150,
-                  height: 150,
-                  borderRadius: 75,
-                  overflow: 'hidden',
-                  backgroundColor: '#6C8CFF',
+                  height: 1,
+                  backgroundColor: '#1F2937',
+                  marginVertical: 16,
                 }}
+              />
+
+              {/* Cancel */}
+              <Pressable
+                onPress={onClose}
+                style={({ pressed }) => [
+                  {
+                    paddingVertical: 14,
+                    alignItems: 'center',
+                  },
+                  pressed && {
+                    opacity: 0.6,
+                  },
+                ]}
               >
-                <Image
-                  source={{ uri: selectedImage || currentImage || '' }}
-                  style={{ width: 150, height: 150 }}
-                  contentFit="cover"
-                />
-              </View>
+                <Text style={{ color: '#9CA3AF', fontSize: 16 }}>
+                  Cancel
+                </Text>
+              </Pressable>
             </View>
           )}
-
-          {/* Options */}
-          <View style={{ padding: 16 }}>
-            {!selectedImage ? (
-              <>
-                {/* Camera Option */}
-                <Pressable
-                  onPress={takePhoto}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    paddingVertical: 16,
-                    gap: 12,
-                  }}
-                >
-                  <Text style={{ fontSize: 24 }}>📷</Text>
-                  <Text style={{ color: '#E5E7EB', fontSize: 16 }}>
-                    Take Photo
-                  </Text>
-                </Pressable>
-
-                {/* Gallery Option */}
-                <Pressable
-                  onPress={pickFromGallery}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    paddingVertical: 16,
-                    gap: 12,
-                  }}
-                >
-                  <Text style={{ fontSize: 24 }}>🖼️</Text>
-                  <Text style={{ color: '#E5E7EB', fontSize: 16 }}>
-                    Choose from Gallery
-                  </Text>
-                </Pressable>
-
-                {/* Remove Option (only if has current image) */}
-                {currentImage && (
-                  <Pressable
-                    onPress={removeImage}
-                    disabled={uploading}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      paddingVertical: 16,
-                      gap: 12,
-                    }}
-                  >
-                    <Text style={{ fontSize: 24 }}>🗑️</Text>
-                    <Text style={{ color: '#EF4444', fontSize: 16 }}>
-                      Remove Current Photo
-                    </Text>
-                  </Pressable>
-                )}
-
-                {/* Divider */}
-                <View
-                  style={{
-                    height: 1,
-                    backgroundColor: '#1F2937',
-                    marginVertical: 8,
-                  }}
-                />
-
-                {/* Cancel */}
-                <Pressable
-                  onPress={onClose}
-                  style={{
-                    paddingVertical: 16,
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text style={{ color: '#9CA3AF', fontSize: 16 }}>
-                    Cancel
-                  </Text>
-                </Pressable>
-              </>
-            ) : (
-              <>
-                {/* Save Button */}
-                <Pressable
-                  onPress={uploadImage}
-                  disabled={uploading}
-                  style={({ pressed }) => [{
-                    backgroundColor: '#6C8CFF',
-                    paddingVertical: 14,
-                    borderRadius: 10,
-                    alignItems: 'center',
-                    marginBottom: 12,
-                  }, pressed && !uploading && {
-                    backgroundColor: '#5A7BEF',
-                    transform: [{ scale: 0.98 }],
-                  }, uploading && {
-                    opacity: 0.6,
-                  }]}
-                >
-                  {uploading ? (
-                    <ActivityIndicator color="#FFF" size="small" />
-                  ) : (
-                    <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 16 }}>
-                      ✓ Save Photo
-                    </Text>
-                  )}
-                </Pressable>
-
-                {/* Cancel */}
-                <Pressable
-                  onPress={() => setSelectedImage(null)}
-                  disabled={uploading}
-                  style={({ pressed }) => [{
-                    backgroundColor: '#374151',
-                    paddingVertical: 14,
-                    borderRadius: 10,
-                    alignItems: 'center',
-                  }, pressed && !uploading && {
-                    backgroundColor: '#4B5563',
-                    transform: [{ scale: 0.98 }],
-                  }, uploading && {
-                    opacity: 0.6,
-                  }]}
-                >
-                  <Text style={{ color: '#E5E7EB', fontSize: 16, fontWeight: '600' }}>
-                    ✕ Cancel
-                  </Text>
-                </Pressable>
-              </>
-            )}
-          </View>
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   )
 }

@@ -37,10 +37,10 @@ serve(async (req) => {
         const timestamp = Math.floor(Date.now() / 1000).toString()
         const stringToSign = `public_id=${publicId}&timestamp=${timestamp}${CLOUDINARY_API_SECRET}`
         
-        // Create SHA256 signature
+        // Create SHA-1 signature (Cloudinary requires SHA-1)
         const encoder = new TextEncoder()
         const data = encoder.encode(stringToSign)
-        const hashBuffer = await crypto.subtle.digest("SHA-256", data)
+        const hashBuffer = await crypto.subtle.digest("SHA-1", data)
         const hashArray = Array.from(new Uint8Array(hashBuffer))
         const signature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
         

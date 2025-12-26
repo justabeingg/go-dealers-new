@@ -245,6 +245,18 @@ export default function FeedScreen() {
   
   const flatListRef = useRef<FlatList>(null)
 
+  // Listen for feed tab tap (refresh + scroll to top)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if ((globalThis as any).__REFRESH_FEED__) {
+        ;(globalThis as any).__REFRESH_FEED__ = false
+        refreshAndScrollToTop()
+      }
+    }, 100)
+
+    return () => clearInterval(interval)
+  }, [])
+
   // Fetch connected user IDs
   const fetchConnections = async (userId: string) => {
     const { data } = await supabase
@@ -303,6 +315,13 @@ export default function FeedScreen() {
   }, [])
 
   const onRefresh = useCallback(() => {
+    setRefreshing(true)
+    fetchPosts()
+  }, [])
+
+  // Refresh and scroll to top (when feed icon tapped)
+  const refreshAndScrollToTop = useCallback(() => {
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: true })
     setRefreshing(true)
     fetchPosts()
   }, [])

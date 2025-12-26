@@ -1,0 +1,10 @@
+BACKUP: Original Requests Tab (BEFORE Optimization)
+Date: Current working version
+Location: app/(tabs)/requests.tsx
+
+TO RESTORE:
+If optimization breaks, replace app/(tabs)/requests.tsx with this file.
+
+===========================================
+[Full file backed up - see requests.tsx.backup file]
+===========================================
