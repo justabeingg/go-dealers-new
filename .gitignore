@@ -1,0 +1,36 @@
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+.expo-shared/
+dist/
+web-build/
+expo-env.d.ts
+
+# environment variables (DO NOT COMMIT)
+.env
+.env.*
+.env*.local
+
+# editor / IDE
+.vscode/
+
+# native builds (expo managed)
+android/
+ios/
+
+# firebase
+google-services.json
+
+# Metro / debug
+.metro-health-check*
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# OS
+.DS_Store
+
+# TypeScript
+*.tsbuildinfo

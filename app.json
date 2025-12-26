@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "Go Dealers",
+    "slug": "go-dealers",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/go dealers logo.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/images/go dealers logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B0F1A"
+    },
+    "android": {
+      "usesCleartextTraffic": true,
+      "package": "com.anonymous.godealers",
+      "googleServicesFile": "./google-services.json",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/go dealers logo.png",
+        "backgroundColor": "#0B0F1A"
+      },
+      "permissions": [
+        "NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ]
+    },
+    "notification": {
+      "icon": "./assets/images/go dealers logo.png",
+      "color": "#6C8CFF",
+      "androidMode": "default",
+      "androidCollapsedTitle": "{{unread_count}} new notifications"
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/go dealers logo.png",
+          "color": "#6C8CFF"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "2315d307-7f5a-480c-bed2-e2591b673c7c"
+      }
+    },
+    "owner": "zala_devdeep"
+  }
+}

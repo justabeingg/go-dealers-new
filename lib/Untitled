@@ -1,0 +1,23 @@
+import { createContext, useContext, useState } from 'react'
+
+type PostsContextType = {
+  posts: any[]
+  setPosts: React.Dispatch<React.SetStateAction<any[]>>
+}
+
+const PostsContext = createContext<PostsContextType | null>(null)
+
+export const PostsProvider = ({ children }: { children: React.ReactNode }) => {
+  const [posts, setPosts] = useState<any[]>([])
+  return (
+    <PostsContext.Provider value={{ posts, setPosts }}>
+      {children}
+    </PostsContext.Provider>
+  )
+}
+
+export const usePosts = () => {
+  const ctx = useContext(PostsContext)
+  if (!ctx) throw new Error('usePosts must be inside PostsProvider')
+  return ctx
+}
